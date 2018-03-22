@@ -44,6 +44,9 @@ VEML6075 veml6075;
 // Лазерный датчик расстояния
 VL53L0X vl53l0x;
 
+// Напряжение аккумулятора
+#define ACC_VOLTAGE_PIN A0
+
 // Датчик влажности и температуры почвы емкостной
 const float air_value    = 83900.0;
 const float water_value  = 45000.0;
@@ -62,6 +65,7 @@ IPAddress blynk_ip(139, 59, 206, 133);
 #define VEML6075_UPDATE_TIME   5500
 #define VL53L0X_UPDATE_TIME    5600
 #define ADS1115_UPDATE_TIME    5700
+#define VOLTAGE_UPDATE_TIME    5800
 #define CONTROL_UPDATE_TIME    60000
 
 // Таймеры
@@ -72,6 +76,7 @@ BlynkTimer timer_ccs811;
 BlynkTimer timer_veml6075;
 BlynkTimer timer_vl53l0x;
 BlynkTimer timer_ads1115;
+BlynkTimer timer_voltage;
 BlynkTimer timer_control;
 
 // Состояния управляющих устройств
@@ -80,7 +85,7 @@ int out_water_valve = 0;
 int light_control   = 0;
 
 // Параметры сенсоров для IoT сервера
-#define sensorCount 29
+#define sensorCount 31
 char* sensorNames[] = {"soil_temp_1", "soil_temp_2", "soil_temp_3", "soil_temp_4",
                        "soil_hum_1", "soil_hum_2", "soil_hum_3", "soil_hum_4",
                        "air_temp_1", "air_temp_2", "air_hum_1", "air_hum_2",
@@ -88,7 +93,8 @@ char* sensorNames[] = {"soil_temp_1", "soil_temp_2", "soil_temp_3", "soil_temp_4
                        "sun_light", "sun_uva", "sun_uvb",
                        "tvoc_conc", "eco2_conc", "water_level",
                        "acc_x", "acc_y", "acc_z", "mag_x", "mag_y", "mag_z",
-                       "in_water_timer", "out_water_timer", "light_timer"
+                       "in_water_timer", "out_water_timer", "light_timer",
+                       "acc_voltage", "working_time"
                       };
 float sensorValues[sensorCount];
 // Номера датчиков
@@ -121,6 +127,8 @@ float sensorValues[sensorCount];
 #define in_water_timer    26
 #define out_water_timer   27
 #define light_timer       28
+#define acc_voltage       29
+#define working_time      30
 
 void setup()
 {
@@ -233,6 +241,7 @@ void setup()
   Serial.println("Read VEML6075"); readSensorVEML6075();
   Serial.println("Read VL53L0X"); readSensorVL53L0X();
   Serial.println("Read ADS1115"); readSensorADS1115();
+  Serial.println("Read VOLTAGE"); readAccVOLTAGE();
 
   // Вывод в терминал данных с датчиков
   printAllSensors();
@@ -245,6 +254,7 @@ void setup()
   timer_veml6075.setInterval(VEML6075_UPDATE_TIME, readSensorVEML6075);
   timer_vl53l0x.setInterval(VL53L0X_UPDATE_TIME, readSensorVL53L0X);
   timer_ads1115.setInterval(ADS1115_UPDATE_TIME, readSensorADS1115);
+  timer_voltage.setInterval(VOLTAGE_UPDATE_TIME, readAccVOLTAGE);
   timer_control.setInterval(CONTROL_UPDATE_TIME, doControlTIMER);
 }
 
@@ -258,6 +268,7 @@ void loop()
   timer_veml6075.run();
   timer_vl53l0x.run();
   timer_ads1115.run();
+  timer_voltage.run();
   timer_control.run();
 }
 
@@ -368,7 +379,13 @@ void readSensorADS1115()
   Blynk.virtualWrite(V7, sensorValues[soil_hum_4]); delay(25);
 }
 
-// Чтение встроенного АЦП и измерение напряжения питания
+// Чтение встроенного АЦП и измерение напряжения аккумулятора
+void readAccVOLTAGE()
+{
+  float acc_u = analogRead(A0);
+  sensorValues[acc_voltage] =  acc_u / 1023.0 * 5.0;
+  Blynk.virtualWrite(V27, sensorValues[acc_voltage]); delay(25);
+}
 
 // Чтение EEPROM и установка счетчика времени работы
 
