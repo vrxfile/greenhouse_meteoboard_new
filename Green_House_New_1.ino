@@ -62,6 +62,9 @@ const float moisture_100 = 100.0;
 char auth[] = "08b6358f69b342c6840504fa054ccad3";
 IPAddress blynk_ip(139, 59, 206, 133);
 
+// Терминал в приложении Blynk
+WidgetTerminal terminal(V28);
+
 // Периоды для таймеров
 #define BME280_UPDATE_TIME     5100
 #define BH1750_UPDATE_TIME     5200
@@ -156,12 +159,15 @@ void setup()
 
   // Инициализация интерфейса I2C
   Serial.println("Init I2C");
+  terminal.println("Init I2C");
   Wire.begin(4, 5);
   Wire.setClock(10000L);
+  terminal.flush();
   delay(1024);
 
   // Инициализация расширителя портов
   Serial.println("Init PCF8574");
+  terminal.println("Init PCF8574");
   pcf8574.begin();
   pcf8574.write(0, LOW);
   pcf8574.write(1, LOW);
@@ -171,62 +177,94 @@ void setup()
   pcf8574.write(5, LOW);
   pcf8574.write(6, LOW);
   pcf8574.write(7, LOW);
+  terminal.flush();
   delay(1024);
 
   //Инициализация АЦП
   Serial.println("Init ADS1115");
+  terminal.println("Init ADS1115");
   ads1115_1.setGain(GAIN_TWOTHIRDS);
   ads1115_2.setGain(GAIN_TWOTHIRDS);
   ads1115_1.begin();
   ads1115_2.begin();
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчика BH1750
   Serial.println("Init BH1750");
+  terminal.println("Init BH1750");
   bh1750.begin();
   bh1750.setMode(Continuously_High_Resolution_Mode);
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчика LSM303
   Serial.println("Init LSM303");
+  terminal.println("Init LSM303");
   mag303.enableAutoRange(true);
   bool mag_stat = mag303.begin();
   if (!mag_stat)
+  {
     Serial.println("Could not find a valid LSM303 sensor, check wiring!");
+    terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+  }
   bool acc_stat = accel303.begin();
   if (!acc_stat)
+  {
     Serial.println("Could not find a valid LSM303 sensor, check wiring!");
+    terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+  }
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчика CCS811
   Serial.println("Init CCS811");
+  terminal.println("Init CCS811");
   bool ccs_stat = ccs811.begin();
   if (!ccs_stat)
+  {
     Serial.println("Could not find a valid CCS811 sensor, check wiring!");
+    terminal.println("Could not find a valid CCS811 sensor, check wiring!");
+  }
   while (!ccs811.available());
   float ccs_temp = ccs811.calculateTemperature();
   ccs811.setTempOffset(ccs_temp - 25.0);
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчика VEML6075
   Serial.println("Init VEML6075");
+  terminal.println("Init VEML6075");
   bool veml_stat = veml6075.begin();
   if (!veml_stat)
+  {
     Serial.println("Could not find a valid VEML6075 sensor, check wiring!");
+    terminal.println("Could not find a valid VEML6075 sensor, check wiring!");
+  }
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчиков BME280
   Serial.println("Init BME280");
+  terminal.println("Init BME280");
   bool bme_stat_1 = bme280_1.begin(0x77);
   if (!bme_stat_1)
+  {
     Serial.println("Could not find a valid BME280 sensor #1, check wiring!");
+    terminal.println("Could not find a valid BME280 sensor #1, check wiring!");
+  }
   bool bme_stat_2 = bme280_2.begin(0x76);
   if (!bme_stat_2)
+  {
     Serial.println("Could not find a valid BME280 sensor #2, check wiring!");
+    terminal.println("Could not find a valid BME280 sensor #2, check wiring!");
+  }
+  terminal.flush();
   delay(1024);
 
   // Инициализация датчика VL53L0X
   Serial.println("Init VL53L0X");
+  terminal.println("Init VL53L0X");
 #define LONG_RANGE
   //#define HIGH_SPEED
   //#define HIGH_ACCURACY
@@ -242,28 +280,34 @@ void setup()
 #elif defined HIGH_ACCURACY
   vl53l0x.setMeasurementTimingBudget(200000);
 #endif
+  terminal.flush();
   delay(1024);
 
   // Инициализация часов реального времени DS1307
+  Serial.println("Init DS1307");
+  terminal.println("Init DS1307");
   ds_clock.begin();
   if (!ds_clock.isReady())
     ds_clock.setDateTime(__DATE__, __TIME__);
   zero_dt = ds_clock.getDateTime();
+  terminal.flush();
   delay(1024);
 
   // Однократный опрос датчиков
-  Serial.println("Read BME280"); readSensorBME280();
-  Serial.println("Read BH1750"); readSensorBH1750();
-  Serial.println("Read LSM303"); readSensorLSM303();
-  Serial.println("Read CCS811"); readSensorCCS811();
-  Serial.println("Read VEML6075"); readSensorVEML6075();
-  Serial.println("Read VL53L0X"); readSensorVL53L0X();
-  Serial.println("Read ADS1115"); readSensorADS1115();
-  Serial.println("Read VOLTAGE"); readAccVOLTAGE();
-  Serial.println("Read WORKTIME"); readworkingTIMER();
+  Serial.println("Read BME280"); terminal.println("Read BME280"); readSensorBME280();
+  Serial.println("Read BH1750"); terminal.println("Read BH1750"); readSensorBH1750();
+  Serial.println("Read LSM303"); terminal.println("Read LSM303"); readSensorLSM303();
+  Serial.println("Read CCS811"); terminal.println("Read CCS811"); readSensorCCS811();
+  Serial.println("Read VEML6075"); terminal.println("Read VEML6075"); readSensorVEML6075();
+  Serial.println("Read VL53L0X"); terminal.println("Read VL53L0X"); readSensorVL53L0X();
+  Serial.println("Read ADS1115"); terminal.println("Read ADS1115"); readSensorADS1115();
+  Serial.println("Read VOLTAGE"); terminal.println("Read VOLTAGE"); readAccVOLTAGE();
+  Serial.println("Read WORKTIME"); terminal.println("Read WORKTIME"); readworkingTIMER();
+  terminal.flush();
 
   // Вывод в терминал данных с датчиков
   printAllSensors();
+  terminal.flush();
 
   // Инициализация таймеров
   timer_bme280.setInterval(BME280_UPDATE_TIME, readSensorBME280);
@@ -429,24 +473,21 @@ void doControlTIMER()
   if (in_water_valve <= 0)
   {
     in_water_valve = 0;
-    Blynk.virtualWrite(V104, LOW);
-    delay(25);
+    Blynk.virtualWrite(V104, LOW); delay(25);
     pcf8574.write(0, LOW);
   }
   // Проверка окончания работы таймера выходного клапана
   if (out_water_valve <= 0)
   {
     out_water_valve = 0;
-    Blynk.virtualWrite(V103, LOW);
-    delay(25);
+    Blynk.virtualWrite(V103, LOW); delay(25);
     pcf8574.write(1, LOW);
   }
   // Проверка окончания работы таймера освещения
   if (light_control <= 0)
   {
     light_control = 0;
-    Blynk.virtualWrite(V105, LOW);
-    delay(25);
+    Blynk.virtualWrite(V105, LOW); delay(25);
     pcf8574.write(2, LOW);
   }
   Blynk.virtualWrite(V101, in_water_valve); delay(25);
@@ -458,28 +499,24 @@ void doControlTIMER()
 BLYNK_WRITE(V100)
 {
   out_water_valve = param.asInt();
-  Serial.println(out_water_valve);
 }
 
 // Управление таймером набора воды с Blynk
 BLYNK_WRITE(V101)
 {
   in_water_valve = param.asInt();
-  Serial.println(in_water_valve);
 }
 
 // Управление таймером освещения с Blynk
 BLYNK_WRITE(V102)
 {
   light_control = param.asInt();
-  Serial.println(light_control);
 }
 
 // Управление поливом с Blynk
 BLYNK_WRITE(V103)
 {
   int pwr = param.asInt();
-  Serial.println(pwr);
   pcf8574.write(1, pwr);
 }
 
@@ -487,7 +524,6 @@ BLYNK_WRITE(V103)
 BLYNK_WRITE(V104)
 {
   int pwr = param.asInt();
-  Serial.println(pwr);
   pcf8574.write(0, pwr);
 }
 
@@ -495,7 +531,6 @@ BLYNK_WRITE(V104)
 BLYNK_WRITE(V105)
 {
   int pwr = param.asInt();
-  Serial.println(pwr);
   pcf8574.write(2, pwr);
 }
 
@@ -507,7 +542,12 @@ void printAllSensors()
     Serial.print(sensorNames[i]);
     Serial.print(" = ");
     Serial.println(sensorValues[i]);
+    terminal.print(sensorNames[i]);
+    terminal.print(" = ");
+    terminal.println(sensorValues[i]);
   }
   Serial.println();
+  terminal.println();
+  terminal.flush();
 }
 
