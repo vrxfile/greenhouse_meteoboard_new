@@ -406,9 +406,7 @@ void readworkingTIMER()
   RTCDateTime current_dt = ds_clock.getDateTime();
   uint32_t zt = zero_dt.unixtime;
   uint32_t ct = current_dt.unixtime;
-  uint32_t wt = ct - zt;
-  Serial.print("UTime: ");
-  Serial.println(wt);
+  sensorValues[working_time] = fabs(ct - zt);
   Blynk.virtualWrite(V26, sensorValues[working_time]); delay(25);
 }
 
