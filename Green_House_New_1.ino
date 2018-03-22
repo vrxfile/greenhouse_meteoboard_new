@@ -12,6 +12,7 @@
 #include <BH1750FVI.h>
 #include <VL53L0X.h>
 #include <VEML6075.h>
+#include <DS1307.h>
 
 // Точка доступа Wi-Fi
 char ssid[] = "IOTIK";
@@ -47,6 +48,10 @@ VL53L0X vl53l0x;
 // Напряжение аккумулятора
 #define ACC_VOLTAGE_PIN A0
 
+// Часы реального времени
+DS1307 ds_clock;
+RTCDateTime zero_dt;
+
 // Датчик влажности и температуры почвы емкостной
 const float air_value    = 83900.0;
 const float water_value  = 45000.0;
@@ -66,6 +71,7 @@ IPAddress blynk_ip(139, 59, 206, 133);
 #define VL53L0X_UPDATE_TIME    5600
 #define ADS1115_UPDATE_TIME    5700
 #define VOLTAGE_UPDATE_TIME    5800
+#define WORKTIME_UPDATE_TIME   10000
 #define CONTROL_UPDATE_TIME    60000
 
 // Таймеры
@@ -77,12 +83,17 @@ BlynkTimer timer_veml6075;
 BlynkTimer timer_vl53l0x;
 BlynkTimer timer_ads1115;
 BlynkTimer timer_voltage;
+BlynkTimer timer_worktime;
 BlynkTimer timer_control;
 
-// Состояния управляющих устройств
+// Состояния управляющих устройств (таймеры)
 int in_water_valve  = 0;
 int out_water_valve = 0;
 int light_control   = 0;
+
+// Уровни воды в бочке
+#define MIN_WATER_LEVEL 1.0
+#define MAX_WATER_LEVEL 0.2
 
 // Параметры сенсоров для IoT сервера
 #define sensorCount 31
@@ -233,6 +244,13 @@ void setup()
 #endif
   delay(1024);
 
+  // Инициализация часов реального времени DS1307
+  ds_clock.begin();
+  if (!ds_clock.isReady())
+    ds_clock.setDateTime(__DATE__, __TIME__);
+  zero_dt = ds_clock.getDateTime();
+  delay(1024);
+
   // Однократный опрос датчиков
   Serial.println("Read BME280"); readSensorBME280();
   Serial.println("Read BH1750"); readSensorBH1750();
@@ -242,6 +260,7 @@ void setup()
   Serial.println("Read VL53L0X"); readSensorVL53L0X();
   Serial.println("Read ADS1115"); readSensorADS1115();
   Serial.println("Read VOLTAGE"); readAccVOLTAGE();
+  Serial.println("Read WORKTIME"); readworkingTIMER();
 
   // Вывод в терминал данных с датчиков
   printAllSensors();
@@ -255,6 +274,7 @@ void setup()
   timer_vl53l0x.setInterval(VL53L0X_UPDATE_TIME, readSensorVL53L0X);
   timer_ads1115.setInterval(ADS1115_UPDATE_TIME, readSensorADS1115);
   timer_voltage.setInterval(VOLTAGE_UPDATE_TIME, readAccVOLTAGE);
+  timer_worktime.setInterval(WORKTIME_UPDATE_TIME, readworkingTIMER);
   timer_control.setInterval(CONTROL_UPDATE_TIME, doControlTIMER);
 }
 
@@ -269,6 +289,7 @@ void loop()
   timer_vl53l0x.run();
   timer_ads1115.run();
   timer_voltage.run();
+  timer_worktime.run();
   timer_control.run();
 }
 
@@ -379,6 +400,18 @@ void readSensorADS1115()
   Blynk.virtualWrite(V7, sensorValues[soil_hum_4]); delay(25);
 }
 
+// Чтение EEPROM и установка счетчика времени работы
+void readworkingTIMER()
+{
+  RTCDateTime current_dt = ds_clock.getDateTime();
+  uint32_t zt = zero_dt.unixtime;
+  uint32_t ct = current_dt.unixtime;
+  uint32_t wt = ct - zt;
+  Serial.print("UTime: ");
+  Serial.println(wt);
+  Blynk.virtualWrite(V26, sensorValues[working_time]); delay(25);
+}
+
 // Чтение встроенного АЦП и измерение напряжения аккумулятора
 void readAccVOLTAGE()
 {
@@ -387,14 +420,14 @@ void readAccVOLTAGE()
   Blynk.virtualWrite(V27, sensorValues[acc_voltage]); delay(25);
 }
 
-// Чтение EEPROM и установка счетчика времени работы
-
 // Обратный отсчет таймеров
 void doControlTIMER()
 {
+  // Уменьшение таймеров управляющих устройств на 1 минуту
   in_water_valve = in_water_valve - 1;
   out_water_valve = out_water_valve - 1;
   light_control = light_control - 1;
+  // Проверка окончания работы таймера входного клапана
   if (in_water_valve <= 0)
   {
     in_water_valve = 0;
@@ -402,6 +435,7 @@ void doControlTIMER()
     delay(25);
     pcf8574.write(0, LOW);
   }
+  // Проверка окончания работы таймера выходного клапана
   if (out_water_valve <= 0)
   {
     out_water_valve = 0;
@@ -409,6 +443,7 @@ void doControlTIMER()
     delay(25);
     pcf8574.write(1, LOW);
   }
+  // Проверка окончания работы таймера освещения
   if (light_control <= 0)
   {
     light_control = 0;
