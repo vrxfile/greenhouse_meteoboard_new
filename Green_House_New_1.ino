@@ -94,6 +94,9 @@ int in_water_valve  = 0;
 int out_water_valve = 0;
 int light_control   = 0;
 
+// Флаг включения автоматического режима
+int auto_flag = 0;
+
 // Уровни воды в бочке
 #define MIN_WATER_LEVEL 1.0
 #define MAX_WATER_LEVEL 0.2
@@ -220,15 +223,17 @@ void setup()
   // Инициализация датчика CCS811
   Serial.println("Init CCS811");
   terminal.println("Init CCS811");
-  bool ccs_stat = ccs811.begin();
-  if (!ccs_stat)
-  {
-    Serial.println("Could not find a valid CCS811 sensor, check wiring!");
-    terminal.println("Could not find a valid CCS811 sensor, check wiring!");
-  }
-  while (!ccs811.available());
-  float ccs_temp = ccs811.calculateTemperature();
-  ccs811.setTempOffset(ccs_temp - 25.0);
+  //  bool ccs_stat = ccs811.begin();
+  //  if (!ccs_stat)
+  //  {
+  //    Serial.println("Could not find a valid CCS811 sensor, check wiring!");
+  //    terminal.println("Could not find a valid CCS811 sensor, check wiring!");
+  //  }
+  //  ccs811.disableInterrupt();
+  //  ccs811.setDriveMode(CCS811_DRIVE_MODE_60SEC);
+  //  while (!ccs811.available());
+  //  float ccs_temp = ccs811.calculateTemperature();
+  //  ccs811.setTempOffset(ccs_temp - 25.0);
   terminal.flush();
   delay(1024);
 
@@ -385,17 +390,19 @@ void readSensorLSM303()
 // Чтение датчика CCS811
 void readSensorCCS811()
 {
-  if (ccs811.available())
-  {
-    float t = ccs811.calculateTemperature();
-    if (!ccs811.readData())
-    {
-      sensorValues[eco2_conc] = ccs811.geteCO2();
-      sensorValues[tvoc_conc] = ccs811.getTVOC();
-      Blynk.virtualWrite(V17, sensorValues[tvoc_conc]); delay(25);
-      Blynk.virtualWrite(V18, sensorValues[eco2_conc]); delay(25);
-    }
-  }
+  //  if (ccs811.available())
+  //  {
+  //    float t = ccs811.calculateTemperature();
+  //    if (!ccs811.readData())
+  //    {
+  //      sensorValues[eco2_conc] = ccs811.geteCO2();
+  //      sensorValues[tvoc_conc] = ccs811.getTVOC();
+  //      Blynk.virtualWrite(V17, sensorValues[tvoc_conc]); delay(25);
+  //      Blynk.virtualWrite(V18, sensorValues[eco2_conc]); delay(25);
+  //    }
+  //  }
+  Blynk.virtualWrite(V17, 0x00); delay(25);
+  Blynk.virtualWrite(V18, 0x00); delay(25);
 }
 
 // Чтение датчика VEML6075
@@ -490,6 +497,22 @@ void doControlTIMER()
     Blynk.virtualWrite(V105, LOW); delay(25);
     pcf8574.write(2, LOW);
   }
+  // Включение автоматического управления
+  if (auto_flag)
+  {
+    // Включение набора воды, если пустая бочка
+    if (sensorValues[water_level] > MIN_WATER_LEVEL)
+    {
+      Blynk.virtualWrite(V104, HIGH); delay(25);
+      pcf8574.write(0, HIGH);
+    }
+    // Отключение набора воды, если полная бочка
+    if (sensorValues[water_level] < MAX_WATER_LEVEL)
+    {
+      Blynk.virtualWrite(V104, LOW); delay(25);
+      pcf8574.write(0, LOW);
+    }
+  }
   Blynk.virtualWrite(V101, in_water_valve); delay(25);
   Blynk.virtualWrite(V100, out_water_valve); delay(25);
   Blynk.virtualWrite(V102, light_control); delay(25);
@@ -532,6 +555,12 @@ BLYNK_WRITE(V105)
 {
   int pwr = param.asInt();
   pcf8574.write(2, pwr);
+}
+
+// Управление автоматическим режимом
+BLYNK_WRITE(V110)
+{
+  auto_flag = param.asInt();
 }
 
 // Print sensors data to terminal
