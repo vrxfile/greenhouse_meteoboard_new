@@ -48,6 +48,9 @@ VL53L0X vl53l0x;
 // Напряжение аккумулятора
 #define ACC_VOLTAGE_PIN A0
 
+// Внешнее реле
+#define LIGHT_RELAY_PIN 16
+
 // Часы реального времени
 DS1307 ds_clock;
 RTCDateTime zero_dt;
@@ -96,6 +99,9 @@ int light_control   = 0;
 
 // Флаг включения автоматического режима
 int auto_flag = 0;
+
+// Флаг ошибки внешнего I2C порта
+int i2c_error = 0;
 
 // Уровни воды в бочке
 #define MIN_WATER_LEVEL 1.0
@@ -160,159 +166,69 @@ void setup()
   Blynk.begin(auth, ssid, pass, blynk_ip, 8442);
   delay(1024);
 
-  // Инициализация интерфейса I2C
-  Serial.println("Init I2C");
-  terminal.println("Init I2C");
-  Wire.begin(4, 5);
-  Wire.setClock(10000L);
-  terminal.flush();
-  delay(1024);
+  /*
+    // Инициализация датчика CCS811
+    Serial.println("Init CCS811");
+    terminal.println("Init CCS811");
+    //  bool ccs_stat = ccs811.begin();
+    //  if (!ccs_stat)
+    //  {
+    //    Serial.println("Could not find a valid CCS811 sensor, check wiring!");
+    //    terminal.println("Could not find a valid CCS811 sensor, check wiring!");
+    //  }
+    //  ccs811.disableInterrupt();
+    //  ccs811.setDriveMode(CCS811_DRIVE_MODE_60SEC);
+    //  while (!ccs811.available());
+    //  float ccs_temp = ccs811.calculateTemperature();
+    //  ccs811.setTempOffset(ccs_temp - 25.0);
+    terminal.flush();
+    delay(1024);
+  */
 
   // Инициализация расширителя портов
-  Serial.println("Init PCF8574");
-  terminal.println("Init PCF8574");
-  pcf8574.begin();
-  pcf8574.write(0, LOW);
-  pcf8574.write(1, LOW);
-  pcf8574.write(2, LOW);
-  pcf8574.write(3, LOW);
-  pcf8574.write(4, LOW);
-  pcf8574.write(5, LOW);
-  pcf8574.write(6, LOW);
-  pcf8574.write(7, LOW);
-  terminal.flush();
-  delay(1024);
-
-  //Инициализация АЦП
-  Serial.println("Init ADS1115");
-  terminal.println("Init ADS1115");
-  ads1115_1.setGain(GAIN_TWOTHIRDS);
-  ads1115_2.setGain(GAIN_TWOTHIRDS);
-  ads1115_1.begin();
-  ads1115_2.begin();
-  terminal.flush();
-  delay(1024);
-
-  // Инициализация датчика BH1750
-  Serial.println("Init BH1750");
-  terminal.println("Init BH1750");
-  bh1750.begin();
-  bh1750.setMode(Continuously_High_Resolution_Mode);
-  terminal.flush();
-  delay(1024);
-
-  // Инициализация датчика LSM303
-  Serial.println("Init LSM303");
-  terminal.println("Init LSM303");
-  mag303.enableAutoRange(true);
-  bool mag_stat = mag303.begin();
-  if (!mag_stat)
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
   {
-    Serial.println("Could not find a valid LSM303 sensor, check wiring!");
-    terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
   }
-  bool acc_stat = accel303.begin();
-  if (!acc_stat)
+  else
   {
-    Serial.println("Could not find a valid LSM303 sensor, check wiring!");
-    terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+    pcf8574.begin(); delay(127);
+    pcf8574.write(0, LOW);
+    pcf8574.write(1, LOW);
+    pcf8574.write(2, LOW);
+    pcf8574.write(3, LOW);
+    pcf8574.write(4, LOW);
+    pcf8574.write(5, LOW);
+    pcf8574.write(6, LOW);
+    pcf8574.write(7, LOW);
   }
-  terminal.flush();
-  delay(1024);
 
-  // Инициализация датчика CCS811
-  Serial.println("Init CCS811");
-  terminal.println("Init CCS811");
-  //  bool ccs_stat = ccs811.begin();
-  //  if (!ccs_stat)
-  //  {
-  //    Serial.println("Could not find a valid CCS811 sensor, check wiring!");
-  //    terminal.println("Could not find a valid CCS811 sensor, check wiring!");
-  //  }
-  //  ccs811.disableInterrupt();
-  //  ccs811.setDriveMode(CCS811_DRIVE_MODE_60SEC);
-  //  while (!ccs811.available());
-  //  float ccs_temp = ccs811.calculateTemperature();
-  //  ccs811.setTempOffset(ccs_temp - 25.0);
-  terminal.flush();
-  delay(1024);
-
-  // Инициализация датчика VEML6075
-  Serial.println("Init VEML6075");
-  terminal.println("Init VEML6075");
-  bool veml_stat = veml6075.begin();
-  if (!veml_stat)
+  // Инициализация RTC
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
   {
-    Serial.println("Could not find a valid VEML6075 sensor, check wiring!");
-    terminal.println("Could not find a valid VEML6075 sensor, check wiring!");
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
   }
-  terminal.flush();
-  delay(1024);
-
-  // Инициализация датчиков BME280
-  Serial.println("Init BME280");
-  terminal.println("Init BME280");
-  bool bme_stat_1 = bme280_1.begin(0x77);
-  if (!bme_stat_1)
+  else
   {
-    Serial.println("Could not find a valid BME280 sensor #1, check wiring!");
-    terminal.println("Could not find a valid BME280 sensor #1, check wiring!");
+    ds_clock.begin(); delay(127);
+    if (!ds_clock.isReady())
+      ds_clock.setDateTime(__DATE__, __TIME__);
+    zero_dt = ds_clock.getDateTime();
   }
-  bool bme_stat_2 = bme280_2.begin(0x76);
-  if (!bme_stat_2)
-  {
-    Serial.println("Could not find a valid BME280 sensor #2, check wiring!");
-    terminal.println("Could not find a valid BME280 sensor #2, check wiring!");
-  }
-  terminal.flush();
-  delay(1024);
 
-  // Инициализация датчика VL53L0X
-  Serial.println("Init VL53L0X");
-  terminal.println("Init VL53L0X");
-#define LONG_RANGE
-  //#define HIGH_SPEED
-  //#define HIGH_ACCURACY
-  vl53l0x.init();
-  vl53l0x.setTimeout(512);
-#if defined LONG_RANGE
-  vl53l0x.setSignalRateLimit(0.1);
-  vl53l0x.setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-  vl53l0x.setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
-#endif
-#if defined HIGH_SPEED
-  vl53l0x.setMeasurementTimingBudget(20000);
-#elif defined HIGH_ACCURACY
-  vl53l0x.setMeasurementTimingBudget(200000);
-#endif
-  terminal.flush();
-  delay(1024);
-
-  // Инициализация часов реального времени DS1307
-  Serial.println("Init DS1307");
-  terminal.println("Init DS1307");
-  ds_clock.begin();
-  if (!ds_clock.isReady())
-    ds_clock.setDateTime(__DATE__, __TIME__);
-  zero_dt = ds_clock.getDateTime();
-  terminal.flush();
-  delay(1024);
-
-  // Однократный опрос датчиков
-  Serial.println("Read BME280"); terminal.println("Read BME280"); readSensorBME280();
-  Serial.println("Read BH1750"); terminal.println("Read BH1750"); readSensorBH1750();
-  Serial.println("Read LSM303"); terminal.println("Read LSM303"); readSensorLSM303();
-  Serial.println("Read CCS811"); terminal.println("Read CCS811"); readSensorCCS811();
-  Serial.println("Read VEML6075"); terminal.println("Read VEML6075"); readSensorVEML6075();
-  Serial.println("Read VL53L0X"); terminal.println("Read VL53L0X"); readSensorVL53L0X();
-  Serial.println("Read ADS1115"); terminal.println("Read ADS1115"); readSensorADS1115();
-  Serial.println("Read VOLTAGE"); terminal.println("Read VOLTAGE"); readAccVOLTAGE();
-  Serial.println("Read WORKTIME"); terminal.println("Read WORKTIME"); readworkingTIMER();
-  terminal.flush();
-
-  // Вывод в терминал данных с датчиков
-  printAllSensors();
-  terminal.flush();
+  // Инициализация выхода внешнего реле
+  pinMode(LIGHT_RELAY_PIN, OUTPUT);
+  digitalWrite(LIGHT_RELAY_PIN, LOW);
 
   // Инициализация таймеров
   timer_bme280.setInterval(BME280_UPDATE_TIME, readSensorBME280);
@@ -342,49 +258,142 @@ void loop()
   timer_control.run();
 }
 
-// Чтение датчика BME280
+// Чтение датчиков BME280
 void readSensorBME280()
 {
-  sensorValues[air_temp_1] = bme280_1.readTemperature();
-  sensorValues[air_hum_1] = bme280_1.readHumidity();
-  sensorValues[air_press_1] = bme280_1.readPressure() * 7.5006 / 1000.0;
-  sensorValues[air_temp_2] = bme280_2.readTemperature();
-  sensorValues[air_hum_2] = bme280_2.readHumidity();
-  sensorValues[air_press_2] = bme280_2.readPressure() * 7.5006 / 1000.0;
-  Blynk.virtualWrite(V8, sensorValues[air_temp_1]); delay(25);
-  Blynk.virtualWrite(V9, sensorValues[air_hum_1]); delay(25);
-  Blynk.virtualWrite(V10, sensorValues[air_press_1]); delay(25);
-  Blynk.virtualWrite(V11, sensorValues[air_temp_2]); delay(25);
-  Blynk.virtualWrite(V12, sensorValues[air_hum_2]); delay(25);
-  Blynk.virtualWrite(V13, sensorValues[air_press_2]); delay(25);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    bool bme_stat_1 = bme280_1.begin(0x77); delay(127);
+    if (!bme_stat_1)
+    {
+      Serial.println("Could not find a valid BME280 sensor #1, check wiring!");
+      terminal.println("Could not find a valid BME280 sensor #1, check wiring!");
+      terminal.flush();
+      return;
+    }
+    else
+    {
+      sensorValues[air_temp_1] = bme280_1.readTemperature();
+      sensorValues[air_hum_1] = bme280_1.readHumidity();
+      sensorValues[air_press_1] = bme280_1.readPressure() * 7.5006 / 1000.0;
+      Blynk.virtualWrite(V8, sensorValues[air_temp_1]); delay(25);
+      Blynk.virtualWrite(V9, sensorValues[air_hum_1]); delay(25);
+      Blynk.virtualWrite(V10, sensorValues[air_press_1]); delay(25);
+    }
+  }
+
+  Wire.begin(12, 13);
+  Wire.setClock(10000L);
+  if ((digitalRead(12) == 0) || (digitalRead(13) == 0))
+  {
+    i2c_error = 1;
+    Serial.println("External I2C error!");
+    terminal.println("External I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    bool bme_stat_2 = bme280_2.begin(0x76); delay(127);
+    if (!bme_stat_2)
+    {
+      Serial.println("Could not find a valid BME280 sensor #2, check wiring!");
+      terminal.println("Could not find a valid BME280 sensor #2, check wiring!");
+      terminal.flush();
+      return;
+    }
+    else
+    {
+      sensorValues[air_temp_2] = bme280_2.readTemperature();
+      sensorValues[air_hum_2] = bme280_2.readHumidity();
+      sensorValues[air_press_2] = bme280_2.readPressure() * 7.5006 / 1000.0;
+      Blynk.virtualWrite(V11, sensorValues[air_temp_2]); delay(25);
+      Blynk.virtualWrite(V12, sensorValues[air_hum_2]); delay(25);
+      Blynk.virtualWrite(V13, sensorValues[air_press_2]); delay(25);
+    }
+  }
 }
 
 // Чтение датчика BH1750
 void readSensorBH1750()
 {
-  sensorValues[sun_light] = bh1750.getAmbientLight();
-  Blynk.virtualWrite(V14, sensorValues[sun_light]); delay(25);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    bh1750.begin(); delay(127);
+    bh1750.setMode(Continuously_High_Resolution_Mode);
+    sensorValues[sun_light] = bh1750.getAmbientLight();
+    Blynk.virtualWrite(V14, sensorValues[sun_light]); delay(25);
+  }
 }
 
 // Чтение датчика LSM303
 void readSensorLSM303()
 {
-  sensors_event_t acc_event;
-  accel303.getEvent(&acc_event);
-  sensors_event_t mag_event;
-  mag303.getEvent(&mag_event);
-  sensorValues[acc_x] = acc_event.acceleration.x;
-  sensorValues[acc_y] = acc_event.acceleration.y;
-  sensorValues[acc_z] = acc_event.acceleration.z;
-  sensorValues[mag_x] = mag_event.magnetic.x;
-  sensorValues[mag_y] = mag_event.magnetic.y;
-  sensorValues[mag_z] = mag_event.magnetic.z;
-  Blynk.virtualWrite(V20, sensorValues[acc_x]); delay(25);
-  Blynk.virtualWrite(V21, sensorValues[acc_y]); delay(25);
-  Blynk.virtualWrite(V22, sensorValues[acc_z]); delay(25);
-  Blynk.virtualWrite(V23, sensorValues[mag_x]); delay(25);
-  Blynk.virtualWrite(V24, sensorValues[mag_y]); delay(25);
-  Blynk.virtualWrite(V25, sensorValues[mag_z]); delay(25);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    mag303.enableAutoRange(true);
+    bool mag_stat = mag303.begin();
+    if (!mag_stat)
+    {
+      Serial.println("Could not find a valid LSM303 sensor, check wiring!");
+      terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+      terminal.flush();
+    }
+    bool acc_stat = accel303.begin();
+    if (!acc_stat)
+    {
+      Serial.println("Could not find a valid LSM303 sensor, check wiring!");
+      terminal.println("Could not find a valid LSM303 sensor, check wiring!");
+      terminal.flush();
+    }
+    delay(127);
+    if ((mag_stat) && (acc_stat))
+    {
+      sensors_event_t acc_event;
+      accel303.getEvent(&acc_event);
+      sensors_event_t mag_event;
+      mag303.getEvent(&mag_event);
+      sensorValues[acc_x] = acc_event.acceleration.x;
+      sensorValues[acc_y] = acc_event.acceleration.y;
+      sensorValues[acc_z] = acc_event.acceleration.z;
+      sensorValues[mag_x] = mag_event.magnetic.x;
+      sensorValues[mag_y] = mag_event.magnetic.y;
+      sensorValues[mag_z] = mag_event.magnetic.z;
+      Blynk.virtualWrite(V20, sensorValues[acc_x]); delay(25);
+      Blynk.virtualWrite(V21, sensorValues[acc_y]); delay(25);
+      Blynk.virtualWrite(V22, sensorValues[acc_z]); delay(25);
+      Blynk.virtualWrite(V23, sensorValues[mag_x]); delay(25);
+      Blynk.virtualWrite(V24, sensorValues[mag_y]); delay(25);
+      Blynk.virtualWrite(V25, sensorValues[mag_z]); delay(25);
+    }
+  }
 }
 
 // Чтение датчика CCS811
@@ -408,57 +417,151 @@ void readSensorCCS811()
 // Чтение датчика VEML6075
 void readSensorVEML6075()
 {
-  veml6075.poll();
-  sensorValues[sun_uva] = veml6075.getUVA();
-  sensorValues[sun_uvb] = veml6075.getUVB();
-  Blynk.virtualWrite(V15, sensorValues[sun_uva]); delay(25);
-  Blynk.virtualWrite(V16, sensorValues[sun_uvb]); delay(25);
+  Wire.begin(12, 13);
+  Wire.setClock(10000L);
+  if ((digitalRead(12) == 0) || (digitalRead(13) == 0))
+  {
+    i2c_error = 1;
+    Serial.println("External I2C error!");
+    terminal.println("External I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    bool veml_stat = veml6075.begin(); delay(127);
+    if (!veml_stat)
+    {
+      Serial.println("Could not find a valid VEML6075 sensor, check wiring!");
+      terminal.println("Could not find a valid VEML6075 sensor, check wiring!");
+      terminal.flush();
+      return;
+    }
+    else
+    {
+      veml6075.poll();
+      sensorValues[sun_uva] = veml6075.getUVA();
+      sensorValues[sun_uvb] = veml6075.getUVB();
+      Blynk.virtualWrite(V15, sensorValues[sun_uva]); delay(25);
+      Blynk.virtualWrite(V16, sensorValues[sun_uvb]); delay(25);
+    }
+  }
 }
 
 // Чтение датчика VL53L0X
 void readSensorVL53L0X()
 {
-  sensorValues[water_level] = vl53l0x.readRangeSingleMillimeters() / 1000.0;
-  Blynk.virtualWrite(V19, sensorValues[water_level]); delay(25);
+  Wire.begin(12, 13);
+  Wire.setClock(10000L);
+  if ((digitalRead(12) == 0) || (digitalRead(13) == 0))
+  {
+    i2c_error = 1;
+    Serial.println("External I2C error!");
+    terminal.println("External I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+#define LONG_RANGE
+    //#define HIGH_SPEED
+    //#define HIGH_ACCURACY
+    vl53l0x.init(); delay(127);
+    vl53l0x.setTimeout(512);
+#if defined LONG_RANGE
+    vl53l0x.setSignalRateLimit(0.1);
+    vl53l0x.setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+    vl53l0x.setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+#endif
+#if defined HIGH_SPEED
+    vl53l0x.setMeasurementTimingBudget(20000);
+#elif defined HIGH_ACCURACY
+    vl53l0x.setMeasurementTimingBudget(200000);
+#endif
+    sensorValues[water_level] = vl53l0x.readRangeSingleMillimeters() / 1000.0;
+    Blynk.virtualWrite(V19, sensorValues[water_level]); delay(25);
+  }
 }
 
 // Чтение аналоговых датчиков через АЦП
 void readSensorADS1115()
 {
-  float adc1_1 = (float)ads1115_1.readADC_SingleEnded(0) * 6.144;
-  float adc1_2 = (float)ads1115_1.readADC_SingleEnded(1) * 6.144;
-  float adc1_3 = (float)ads1115_1.readADC_SingleEnded(2) * 6.144;
-  float adc1_4 = (float)ads1115_1.readADC_SingleEnded(3) * 6.144;
-  float adc2_1 = (float)ads1115_2.readADC_SingleEnded(0) * 6.144;
-  float adc2_2 = (float)ads1115_2.readADC_SingleEnded(1) * 6.144;
-  float adc2_3 = (float)ads1115_2.readADC_SingleEnded(2) * 6.144;
-  float adc2_4 = (float)ads1115_2.readADC_SingleEnded(3) * 6.144;
-  sensorValues[soil_hum_1] = map(adc1_1, air_value, water_value, moisture_0, moisture_100);
-  sensorValues[soil_temp_1] = adc1_2 / 1000.0;
-  sensorValues[soil_hum_2] = map(adc1_3, air_value, water_value, moisture_0, moisture_100);
-  sensorValues[soil_temp_2] = adc1_4 / 1000.0;
-  sensorValues[soil_hum_3] = map(adc2_1, air_value, water_value, moisture_0, moisture_100);
-  sensorValues[soil_temp_3] = adc2_2 / 1000.0;
-  sensorValues[soil_hum_4] = map(adc2_3, air_value, water_value, moisture_0, moisture_100);
-  sensorValues[soil_temp_4] = adc2_4 / 1000.0;
-  Blynk.virtualWrite(V0, sensorValues[soil_temp_1]); delay(25);
-  Blynk.virtualWrite(V1, sensorValues[soil_temp_2]); delay(25);
-  Blynk.virtualWrite(V2, sensorValues[soil_temp_3]); delay(25);
-  Blynk.virtualWrite(V3, sensorValues[soil_temp_4]); delay(25);
-  Blynk.virtualWrite(V4, sensorValues[soil_hum_1]); delay(25);
-  Blynk.virtualWrite(V5, sensorValues[soil_hum_2]); delay(25);
-  Blynk.virtualWrite(V6, sensorValues[soil_hum_3]); delay(25);
-  Blynk.virtualWrite(V7, sensorValues[soil_hum_4]); delay(25);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    ads1115_1.setGain(GAIN_TWOTHIRDS);
+    ads1115_1.begin(); delay(127);
+    float adc1_1 = (float)ads1115_1.readADC_SingleEnded(0) * 6.144;
+    float adc1_2 = (float)ads1115_1.readADC_SingleEnded(1) * 6.144;
+    float adc1_3 = (float)ads1115_1.readADC_SingleEnded(2) * 6.144;
+    float adc1_4 = (float)ads1115_1.readADC_SingleEnded(3) * 6.144;
+    sensorValues[soil_hum_1] = map(adc1_1, air_value, water_value, moisture_0, moisture_100);
+    sensorValues[soil_temp_1] = adc1_2 / 1000.0;
+    sensorValues[soil_hum_2] = map(adc1_3, air_value, water_value, moisture_0, moisture_100);
+    sensorValues[soil_temp_2] = adc1_4 / 1000.0;
+    Blynk.virtualWrite(V0, sensorValues[soil_temp_1]); delay(25);
+    Blynk.virtualWrite(V1, sensorValues[soil_temp_2]); delay(25);
+    Blynk.virtualWrite(V4, sensorValues[soil_hum_1]); delay(25);
+    Blynk.virtualWrite(V5, sensorValues[soil_hum_2]); delay(25);
+  }
+
+  Wire.begin(12, 13);
+  Wire.setClock(10000L);
+  if ((digitalRead(12) == 0) || (digitalRead(13) == 0))
+  {
+    i2c_error = 1;
+    Serial.println("External I2C error!");
+    terminal.println("External I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    ads1115_2.setGain(GAIN_TWOTHIRDS);
+    ads1115_2.begin(); delay(127);
+    float adc2_1 = (float)ads1115_2.readADC_SingleEnded(0) * 6.144;
+    float adc2_2 = (float)ads1115_2.readADC_SingleEnded(1) * 6.144;
+    float adc2_3 = (float)ads1115_2.readADC_SingleEnded(2) * 6.144;
+    float adc2_4 = (float)ads1115_2.readADC_SingleEnded(3) * 6.144;
+    sensorValues[soil_hum_3] = map(adc2_1, air_value, water_value, moisture_0, moisture_100);
+    sensorValues[soil_temp_3] = adc2_2 / 1000.0;
+    sensorValues[soil_hum_4] = map(adc2_3, air_value, water_value, moisture_0, moisture_100);
+    sensorValues[soil_temp_4] = adc2_4 / 1000.0;
+    Blynk.virtualWrite(V2, sensorValues[soil_temp_3]); delay(25);
+    Blynk.virtualWrite(V3, sensorValues[soil_temp_4]); delay(25);
+    Blynk.virtualWrite(V6, sensorValues[soil_hum_3]); delay(25);
+    Blynk.virtualWrite(V7, sensorValues[soil_hum_4]); delay(25);
+  }
 }
 
 // Чтение EEPROM и установка счетчика времени работы
 void readworkingTIMER()
 {
-  RTCDateTime current_dt = ds_clock.getDateTime();
-  uint32_t zt = zero_dt.unixtime;
-  uint32_t ct = current_dt.unixtime;
-  sensorValues[working_time] = fabs(ct - zt);
-  Blynk.virtualWrite(V26, sensorValues[working_time]); delay(25);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+    return;
+  }
+  else
+  {
+    RTCDateTime current_dt = ds_clock.getDateTime();
+    uint32_t zt = zero_dt.unixtime;
+    uint32_t ct = current_dt.unixtime;
+    sensorValues[working_time] = fabs(ct - zt);
+    Blynk.virtualWrite(V26, sensorValues[working_time]); delay(25);
+  }
 }
 
 // Чтение встроенного АЦП и измерение напряжения аккумулятора
@@ -481,21 +584,43 @@ void doControlTIMER()
   {
     in_water_valve = 0;
     Blynk.virtualWrite(V104, LOW); delay(25);
-    pcf8574.write(0, LOW);
+    Wire.begin(4, 5);
+    Wire.setClock(10000L);
+    if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+    {
+      Serial.println("Internal I2C error!");
+      terminal.println("Internal I2C error!");
+      terminal.flush();
+    }
+    else
+    {
+      pcf8574.write(0, LOW);
+    }
   }
   // Проверка окончания работы таймера выходного клапана
   if (out_water_valve <= 0)
   {
     out_water_valve = 0;
     Blynk.virtualWrite(V103, LOW); delay(25);
-    pcf8574.write(1, LOW);
+    Wire.begin(4, 5);
+    Wire.setClock(10000L);
+    if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+    {
+      Serial.println("Internal I2C error!");
+      terminal.println("Internal I2C error!");
+      terminal.flush();
+    }
+    else
+    {
+      pcf8574.write(1, LOW);
+    }
   }
   // Проверка окончания работы таймера освещения
   if (light_control <= 0)
   {
     light_control = 0;
     Blynk.virtualWrite(V105, LOW); delay(25);
-    pcf8574.write(2, LOW);
+    digitalWrite(LIGHT_RELAY_PIN, LOW);
   }
   // Включение автоматического управления
   if (auto_flag)
@@ -504,13 +629,35 @@ void doControlTIMER()
     if (sensorValues[water_level] > MIN_WATER_LEVEL)
     {
       Blynk.virtualWrite(V104, HIGH); delay(25);
-      pcf8574.write(0, HIGH);
+      Wire.begin(4, 5);
+      Wire.setClock(10000L);
+      if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+      {
+        Serial.println("Internal I2C error!");
+        terminal.println("Internal I2C error!");
+        terminal.flush();
+      }
+      else
+      {
+        pcf8574.write(0, HIGH);
+      }
     }
     // Отключение набора воды, если полная бочка
     if (sensorValues[water_level] < MAX_WATER_LEVEL)
     {
       Blynk.virtualWrite(V104, LOW); delay(25);
-      pcf8574.write(0, LOW);
+      Wire.begin(4, 5);
+      Wire.setClock(10000L);
+      if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+      {
+        Serial.println("Internal I2C error!");
+        terminal.println("Internal I2C error!");
+        terminal.flush();
+      }
+      else
+      {
+        pcf8574.write(0, LOW);
+      }
     }
   }
   Blynk.virtualWrite(V101, in_water_valve); delay(25);
@@ -540,21 +687,43 @@ BLYNK_WRITE(V102)
 BLYNK_WRITE(V103)
 {
   int pwr = param.asInt();
-  pcf8574.write(1, pwr);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+  }
+  else
+  {
+    pcf8574.write(1, pwr);
+  }
 }
 
 // Управление набором воды с Blynk
 BLYNK_WRITE(V104)
 {
   int pwr = param.asInt();
-  pcf8574.write(0, pwr);
+  Wire.begin(4, 5);
+  Wire.setClock(10000L);
+  if ((digitalRead(4) == 0) || (digitalRead(5) == 0))
+  {
+    Serial.println("Internal I2C error!");
+    terminal.println("Internal I2C error!");
+    terminal.flush();
+  }
+  else
+  {
+    pcf8574.write(0, pwr);
+  }
 }
 
 // Управление освещением с Blynk
 BLYNK_WRITE(V105)
 {
   int pwr = param.asInt();
-  pcf8574.write(2, pwr);
+  digitalWrite(LIGHT_RELAY_PIN, pwr);
 }
 
 // Управление автоматическим режимом
